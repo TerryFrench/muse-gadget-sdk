@@ -60,6 +60,9 @@ if(CONFIG_MUSE_ENABLED)
     if(CONFIG_MUSE_HATCH)
         list(APPEND srcs "muse_chat.c" "muse_account_api.c" "muse_chat_session.cpp" "muse_options_json.c")
         list(APPEND embed "test_reply.mp3")   # muse_hatch_mp3_selftest
+        if(CONFIG_MUSE_LOCAL_TTS)
+            list(APPEND srcs "muse_tts_local.c")   # replies spoken on the device
+        endif()
         if(CONFIG_MUSE_REALTIME_VOICE)
             list(APPEND srcs "muse_voice_call.cpp" "muse_voice_call_core.c")
             if(CONFIG_MUSE_VOICE_SOFTWARE_AEC)
@@ -261,6 +264,11 @@ if(IDF_TARGET STREQUAL "esp32s31")
     list(APPEND muse_priv_requires esp_driver_jpeg esp_driver_ppa)
 endif()
 list(APPEND muse_priv_requires muse_wakeword)   # registers empty unless MUSE_WAKEWORD_ENABLE
+# On-device speech (CONFIG_MUSE_LOCAL_TTS): the runtime comes from outside this
+# repository (cmake/project.cmake). The environment, unlike Kconfig, is known here.
+if(DEFINED ENV{MUSE_STEERTTS_DIR})
+    list(APPEND muse_priv_requires steertts_nano)
+endif()
 
 idf_component_register(
     SRCS ${srcs}

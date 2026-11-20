@@ -24,3 +24,14 @@ muse-simulator.ppm
 # Local gadget provisioning and original-device flash backups.
 .sdk-token
 /backups/
+*.env
+.env*
+
+# On-device speech (CONFIG_MUSE_LOCAL_TTS): the model weights and runtime are
+# licensed separately (non-commercial) and never belong here; nor do flash
+# dumps, which hold Wi-Fi and pairing secrets, or audio samples.
+*.bin
+*.wav
+*.safetensors
+steertts_nano/
+steer-tts/

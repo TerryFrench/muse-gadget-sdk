@@ -78,6 +78,9 @@ extern "C" {
 #include "muse_wifi.h"
 }
 #include "muse_chat_priv.h"
+#if CONFIG_MUSE_LOCAL_TTS
+#include "muse_tts_local.h"
+#endif
 #include "muse_options.h"
 #include "sdkconfig.h"
 #if CONFIG_MUSE_REALTIME_VOICE
@@ -178,6 +181,7 @@ static QueueHandle_t s_cmds, s_events;
 static StreamBufferHandle_t s_in, s_out;
 static std::atomic<uint32_t> s_gen{0};
 static std::atomic<bool> s_resting{false};
+static std::atomic<bool> s_local_voice{false};   /* set when a turn's speech starts on the device, cleared by the next turn */
 
 /* ---- Connection ---- */
 
@@ -272,6 +276,7 @@ struct turn_t {
     /* TTS */
     int tts_msg;             /* message being fetched (or shown, speaker off), or -1 */
     bool silent;             /* speaker off: tts_msg is paced by silence, not fetched */
+    bool local;              /* tts_msg is spoken on the device (muse_tts_local.c), not fetched */
     uint8_t *mp3;            /* MP3_BUF */
     size_t mp3_len;
     bool mp3_ended;
@@ -1041,6 +1046,12 @@ static void turn_finish(void)
     s_turn.tts_msg = -1;
     s_turn.silent = false;
     s_turn.mp3_len = 0;
+#if CONFIG_MUSE_LOCAL_TTS
+    if (s_turn.local) {
+        muse_tts_local_cancel();
+        s_turn.local = false;
+    }
+#endif
 }
 
 static void turn_fail(const char *why)
@@ -1092,6 +1103,7 @@ static bool turn_start(uint32_t gen, bool text)
 #endif
     s_turn.text = text;
     s_turn.tts_msg = -1;
+    s_local_voice = false;
     memset(s_marks, 0, sizeof(s_marks));
     s_reply_shown[0] = '\0';
     s_turn.start_us = now_us();
@@ -1999,6 +2011,22 @@ static void start_tts(void)
          * end. decode() plays it at the speaker's volume, captions following,
          * and finishes the message once it's drained.
          */
+#if CONFIG_MUSE_LOCAL_TTS
+        /* Spoken on the device: pump_local() queues the speech as its sentences finish. */
+        if (s_turn.texts && muse_settings_local_tts() && muse_settings_speaker_on() &&
+            muse_tts_local_speak(s_turn.texts + i * TEXT_MAX)) {
+            m.pcm_start = s_turn.pcm_out;
+            m.pcm_frames = 0;
+            m.tts = TTS_ACTIVE;
+            s_turn.tts_msg = i;
+            s_turn.silent = false;
+            s_turn.local = true;
+            s_local_voice = true;
+            ESP_LOGI(TAG, "speaking message %s on the device (%u chars)", m.id, (unsigned)m.len);
+            show_reply_start(m);
+            return;
+        }
+#endif
         m.pcm_start = s_turn.pcm_out;
         /* Paced to the text kept: a reply longer than CAPTION_TEXT shows what
          * was kept at reading pace, not stretched over the whole reply's time
@@ -2059,12 +2087,48 @@ static void pace_silently(void)
     }
 }
 
+#if CONFIG_MUSE_LOCAL_TTS
+/* Spoken on the device: queues the sentences that are ready while the reply buffer has room. */
+static void pump_local(void)
+{
+    static int16_t pcm[256];
+    msg_t &m = s_turn.msgs[s_turn.tts_msg];
+    while (xStreamBufferSpacesAvailable(s_out) >= sizeof(pcm)) {
+        size_t n = muse_tts_local_read(pcm, sizeof(pcm) / sizeof(pcm[0]));
+        if (!n) {
+            break;
+        }
+        if (s_turn.gen == s_gen.load()) {
+            mark(M_AUDIO);
+            xStreamBufferSend(s_out, pcm, n * sizeof(int16_t), 0);
+        }
+        s_turn.pcm_out += n;
+    }
+    if (muse_tts_local_synthesized()) {
+        m.pcm_frames = muse_tts_local_total();   /* captions follow the speech's real length */
+    }
+    if (muse_tts_local_done()) {
+        m.pcm_end = s_turn.pcm_out;
+        m.pcm_frames = s_turn.pcm_out - m.pcm_start;
+        m.tts = TTS_FINISHED;
+        s_turn.tts_msg = -1;
+        s_turn.local = false;
+    }
+}
+#endif
+
 /* Decodes buffered MP3 while the reply buffer has room. */
 static void decode(void)
 {
     if (s_turn.tts_msg < 0) {
         return;
     }
+#if CONFIG_MUSE_LOCAL_TTS
+    if (s_turn.local) {
+        pump_local();
+        return;
+    }
+#endif
     if (s_turn.silent) {
         pace_silently();
         return;
@@ -2716,6 +2780,9 @@ extern "C" void muse_hatch_start(void)
         s.cap = NDJSON_LINE_MAX;
     }
     s_turn.tts_msg = -1;
+#if CONFIG_MUSE_LOCAL_TTS
+    muse_tts_local_init();    /* replies stay text if it fails */
+#endif
 #if CONFIG_MUSE_REALTIME_VOICE
     muse_voice_call_init();   /* calls stay unavailable if it fails; notes still work */
 #endif
@@ -2931,6 +2998,11 @@ extern "C" bool muse_hatch_turn_caption(size_t played, char *out, size_t cap)
     }
 
     return muse_hatch_caption_at(text, at, out, cap);
+}
+
+extern "C" bool muse_hatch_turn_local_voice(void)
+{
+    return s_local_voice.load();
 }
 
 extern "C" size_t muse_hatch_turn_read(int16_t *pcm, size_t frames, int wait_ms)

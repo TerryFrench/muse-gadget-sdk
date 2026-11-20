@@ -45,5 +45,12 @@ if(MOSAICO_UTILS)
     )
 endif()
 
+# On-device speech (CONFIG_MUSE_LOCAL_TTS): the SteerTTS Nano runtime is not in
+# this repository (CC BY-NC 4.0). Point MUSE_STEERTTS_DIR, in the environment,
+# at the directory that holds its steertts_nano component.
+if(DEFINED ENV{MUSE_STEERTTS_DIR})
+    list(APPEND EXTRA_COMPONENT_DIRS "$ENV{MUSE_STEERTTS_DIR}")
+endif()
+
 # ESP-IDF reads version.txt from the active project root unless PROJECT_VER is set.
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)

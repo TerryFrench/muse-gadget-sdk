@@ -137,6 +137,9 @@ float muse_turn_progress(size_t played, int *message);
  */
 void muse_chat_set_caption_px(int width_px, int (*glyph_px)(uint32_t letter, uint32_t next));
 
+/* Whether this turn's reply speech is the gadget's own voice (CONFIG_MUSE_LOCAL_TTS). */
+bool muse_hatch_turn_local_voice(void);
+
 /* Reply speech as 16 kHz mono. Waits up to wait_ms for some; returns frames read. */
 size_t muse_hatch_turn_read(int16_t *pcm, size_t frames, int wait_ms);
 

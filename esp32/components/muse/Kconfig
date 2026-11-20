@@ -23,6 +23,24 @@ menu "Muse"
             Keeps up to 32 KiB in PSRAM until reboot; receiver message slots
             use 256 KiB. No conversation text is written to flash.
 
+    config MUSE_LOCAL_TTS
+        bool "Speak replies on the device (SteerTTS Nano)"
+        depends on IDF_TARGET_ESP32S3 && SPIRAM && MUSE_HATCH
+        default n
+        help
+            Replies are spoken by a small text-to-speech model that runs on
+            the gadget itself, with no server. The model and its text front
+            end are read from a "steertts" flash partition
+            (partitions_muse_tts.csv), which has to be below 16 MB.
+
+            The runtime and the weights are not in this repository (CC BY-NC
+            4.0, non-commercial use only): set MUSE_STEERTTS_DIR in the
+            environment to the directory holding the steertts_nano component,
+            and flash nano.bin at the partition's start and front.bin 4 MB in.
+            Without a model in the partition, replies stay text.
+
+            Takes about 1 MB of PSRAM. English only.
+
     choice MUSE_BOARD
         prompt "Board with the full UI"
         default MUSE_BOARD_NONE

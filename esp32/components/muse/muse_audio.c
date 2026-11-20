@@ -81,10 +81,12 @@ static bool codecs_reachable(void)
     return s_open || !muse_board->codec_power;
 }
 
+static bool s_full_level;   /* the device's own voice is playing: quiet at the source */
+
 static void apply_volume(int volume)
 {
     if (s_spk && codecs_reachable()) {
-        esp_codec_dev_set_out_vol(s_spk, volume);
+        esp_codec_dev_set_out_vol(s_spk, s_full_level && volume > 0 ? 100 : volume);
     }
 }
 
@@ -240,6 +242,16 @@ void muse_audio_set_volume(int volume)
 {
     lock();
     apply_volume(volume);
+    unlock();
+}
+
+void muse_audio_set_full_level(bool on)
+{
+    lock();
+    if (s_full_level != on) {
+        s_full_level = on;
+        apply_volume(muse_settings_volume());
+    }
     unlock();
 }
 

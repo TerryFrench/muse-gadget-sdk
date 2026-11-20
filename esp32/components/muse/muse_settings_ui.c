@@ -1358,6 +1358,13 @@ static void on_speaker_sw(lv_event_t *e)
     muse_settings_set_speaker_on(lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED));
 }
 
+#if CONFIG_MUSE_LOCAL_TTS
+static void on_local_tts_sw(lv_event_t *e)
+{
+    muse_settings_set_local_tts(lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED));
+}
+#endif
+
 #if CONFIG_MUSE_BOARD_M5STACK_STOPWATCH_FAMILY && CONFIG_MUSE_REALTIME_VOICE
 static void on_notes_sw(lv_event_t *e)
 {
@@ -1424,6 +1431,10 @@ static void build_sound_page(lv_obj_t *tile)
     note(list, "Off: hold yellow to talk live, release to listen; blue ends the call. On: hold yellow to send a voice note. Applies to the next call.");
 #endif
     if (muse_board->audio_init) {
+#if CONFIG_MUSE_LOCAL_TTS
+        switch_row(list, "Device voice", muse_settings_local_tts(), on_local_tts_sw);
+        note(list, "On: the gadget speaks replies itself, with no server. Off: replies are text.");
+#endif
         s_spk_sw = switch_row(list, "Speaker", muse_settings_speaker_on(), on_speaker_sw);
         s_vol_sl = slider(list, "Volume", 0, 100, muse_settings_volume(), &s_vol_val, on_volume);
     }

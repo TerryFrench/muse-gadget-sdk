@@ -74,6 +74,12 @@ void muse_settings_set_voice_notes(bool on);
 #if CONFIG_MUSE_WAKEWORD_ENABLE
 bool muse_settings_wakeword_on(void);   /* hands-free listening opt-in; default off */
 #endif
+#if CONFIG_MUSE_LOCAL_TTS
+/* Replies spoken by the gadget's own speech model (muse_tts_local.h); off:
+ * shown as text. Default on. Applies from the next reply. */
+bool muse_settings_local_tts(void);
+void muse_settings_set_local_tts(bool on);
+#endif
 /* With CONFIG_MUSE_APP_VIEW, Apps in Settings (off until the person turns
  * them on): whether the gadget runs the apps their Muse makes. Changing it
  * restarts the gadget, so Muse learns of the app commands as it reconnects. */

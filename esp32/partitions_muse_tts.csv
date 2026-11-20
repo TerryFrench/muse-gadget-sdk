@@ -1,0 +1,14 @@
+# partitions_muse.csv with the speech model (CONFIG_MUSE_LOCAL_TTS) where the
+# WebAssembly apps' two partitions (apps, files) are: a build has one or the
+# other. The model is memory-mapped, which flash past 16 MB can't be without
+# ESP-IDF's experimental 32-bit addressing, so it sits below that.
+# Name,    Type, SubType, Offset,   Size
+nvs,       data, nvs,     0x11000,  0xC000,
+otadata,   data, ota,     0x1D000,  0x2000,
+phy_init,  data, phy,     0x1F000,  0x1000,
+ota_0,     app,  ota_0,   0x20000,  4M,
+ota_1,     app,  ota_1,   0x420000, 4M,
+prod_data, data, 0x40,    0x820000, 0x1000,
+prod_bak,  data, 0x41,    0x821000, 0x1000,
+# nano.bin at +0 (flash 0x830000), front.bin at +0x400000 (flash 0xC30000)
+steertts,  data, 0x42,    0x830000, 0x600000,

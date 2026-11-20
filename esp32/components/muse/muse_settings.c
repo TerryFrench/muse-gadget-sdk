@@ -64,6 +64,9 @@ static struct {
 static SemaphoreHandle_t s_lock;
 /* StopWatch samples this at the next press, never during an active call. */
 static atomic_bool s_voice_notes;
+#if CONFIG_MUSE_LOCAL_TTS
+static atomic_bool s_local_tts = true;   /* read by the chat session's task at each reply */
+#endif
 #if CONFIG_MUSE_APP_VIEW
 static bool s_apps_on;
 #endif
@@ -136,6 +139,11 @@ esp_err_t muse_settings_init(void)
         atomic_store(&s_voice_notes, b != 0);
     }
 #endif
+#if CONFIG_MUSE_LOCAL_TTS
+    if (nvs_get_u8(s_nvs, "local_tts", &b) == ESP_OK) {
+        atomic_store(&s_local_tts, b != 0);
+    }
+#endif
     load_u8("bright", &s.brightness);
     nvs_get_u16(s_nvs, "sleep_s", &s.sleep_s);
     load_u8("text_size", &s.text_size);
@@ -180,6 +188,16 @@ int muse_settings_text_size(void) { return s.text_size; }
 bool muse_settings_wifi_on(void) { return s.wifi_on; }
 bool muse_settings_ble_on(void) { return s.ble_on; }
 bool muse_settings_voice_notes(void) { return atomic_load(&s_voice_notes); }
+
+#if CONFIG_MUSE_LOCAL_TTS
+bool muse_settings_local_tts(void) { return atomic_load(&s_local_tts); }
+
+void muse_settings_set_local_tts(bool on)
+{
+    atomic_store(&s_local_tts, on);
+    save_u8("local_tts", on);
+}
+#endif
 
 void muse_settings_set_voice_notes(bool on)
 {

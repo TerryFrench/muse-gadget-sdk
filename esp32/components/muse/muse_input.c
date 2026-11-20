@@ -1074,6 +1074,10 @@ static void serial_task(void *arg)
         }
         if (c == 'm') {
             muse_voice_request_mp3test();
+#if CONFIG_MUSE_LOCAL_TTS
+        } else if (c == 't') {
+            muse_voice_request_ttstest();   /* a sentence spoken on the device, no network */
+#endif
         } else if (c == 'a' || c == 's') {
             muse_state_poke();
             muse_menu_key(c == 'a' ? MUSE_MENU_DOWN : MUSE_MENU_SELECT);

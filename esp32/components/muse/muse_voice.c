@@ -37,6 +37,9 @@
 #include "muse_mem.h"
 #include "muse_settings.h"
 #include "muse_state.h"
+#if CONFIG_MUSE_LOCAL_TTS
+#include "muse_tts_local.h"
+#endif
 #include "muse_wakeword_glue.h"
 #include "muse_wifi.h"
 #if CONFIG_MUSE_VOICE_SOFTWARE_AEC
@@ -137,6 +140,10 @@ static volatile float s_monitor_db = -100.0f;
 static volatile bool s_chirp;
 static volatile bool s_loopback;
 static volatile bool s_mp3test;
+#if CONFIG_MUSE_LOCAL_TTS
+static volatile bool s_ttstest;
+static void tts_selftest(void);
+#endif
 static atomic_int s_call_view;
 static atomic_bool s_ptt_call;
 static atomic_bool s_shutdown;
@@ -606,7 +613,16 @@ static void go_idle(const char *caption);
  * true if interrupted by a new press. *delivered: the VM has the note.
  * incoming: a reply to an earlier request, which nobody pressed for.
  */
+static bool hatch_reply_play(bool *delivered, bool incoming);
+
 static bool hatch_reply(bool *delivered, bool incoming)
+{
+    bool interrupted = hatch_reply_play(delivered, incoming);
+    muse_audio_set_full_level(false);
+    return interrupted;
+}
+
+static bool hatch_reply_play(bool *delivered, bool incoming)
 {
     muse_wakeword_set_playback(true);   /* never trigger on Muse's own voice */
     atomic_store(&s_reply_waiting, false);
@@ -690,6 +706,7 @@ static bool hatch_reply(bool *delivered, bool incoming)
             atomic_store(&s_reply_waiting, false);
             if (!speaking) {
                 speaking = true;
+                muse_audio_set_full_level(muse_hatch_turn_local_voice());
                 muse_state_set_mode(MUSE_MODE_SPEAKING);
                 ESP_LOGI(TAG, "reply audio after %.2fs", (esp_timer_get_time() - t0) / 1e6);
             }
@@ -1631,6 +1648,15 @@ static void voice_task(void *arg)
                 muse_wakeword_set_playback(false);
                 pre_reset();
             }
+#if CONFIG_MUSE_LOCAL_TTS
+            if (s_ttstest) {
+                s_ttstest = false;
+                muse_wakeword_set_playback(true);
+                tts_selftest();
+                muse_wakeword_set_playback(false);
+                pre_reset();
+            }
+#endif
             if (s_loopback) {
                 s_loopback = false;
                 muse_wakeword_set_playback(true);
@@ -1848,6 +1874,46 @@ void muse_voice_request_mp3test(void)
     s_mp3test = true;
     muse_state_nudge();
 }
+
+#if CONFIG_MUSE_LOCAL_TTS
+void muse_voice_request_ttstest(void)
+{
+    s_ttstest = true;
+    muse_state_nudge();
+}
+
+/* Bench test ('t' on the console): a sentence synthesized and played here, without Muse. */
+static void tts_selftest(void)
+{
+    static int16_t pcm[MUSE_AUDIO_CHUNK];
+    if (!muse_tts_local_speak("Hello. This is Muse, speaking from the device itself. "
+                              "It's 4:15 pm, and the thermostat is set to 68 degrees.")) {
+        ESP_LOGW(TAG, "on-device speech isn't available");
+        return;
+    }
+    int64_t t0 = esp_timer_get_time(), first = 0;
+    size_t total = 0;
+    muse_audio_set_full_level(true);
+    while (esp_timer_get_time() - t0 < 60 * 1000000LL) {
+        size_t n = muse_tts_local_read(pcm, MUSE_AUDIO_CHUNK);
+        if (n) {
+            if (!first) {
+                first = esp_timer_get_time();
+            }
+            muse_audio_write(pcm, n);
+            total += n;
+        } else if (muse_tts_local_done()) {
+            break;
+        } else {
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+    }
+    muse_tts_local_cancel();
+    muse_audio_set_full_level(false);
+    ESP_LOGI(TAG, "speech test: %u samples played, first after %d ms", (unsigned)total,
+             first ? (int)((first - t0) / 1000) : -1);
+}
+#endif
 
 bool muse_voice_resting(void)
 {

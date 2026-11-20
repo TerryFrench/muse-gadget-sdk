@@ -38,6 +38,9 @@ esp_err_t muse_audio_init(int volume, int mic_gain_db);
 void muse_audio_power(bool on);
 
 void muse_audio_set_volume(int volume);          /* 0..100 */
+/* On: the speaker plays at the codec's top level whatever the volume, unless
+ * the volume is 0. For the on-device voice, which is quiet at the source. */
+void muse_audio_set_full_level(bool on);
 void muse_audio_set_mic_gain(int db);            /* 0..MUSE_MIC_GAIN_MAX */
 
 /* Measures the real capture/playback rates and per-mic levels; logs the result. */

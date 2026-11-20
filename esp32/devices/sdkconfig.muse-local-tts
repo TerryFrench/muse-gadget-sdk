@@ -1,0 +1,4 @@
+# Replies spoken on the device (CONFIG_MUSE_LOCAL_TTS). Load after the board's
+# overlay, with MUSE_STEERTTS_DIR set in the environment (see its Kconfig help).
+CONFIG_MUSE_LOCAL_TTS=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_muse_tts.csv"
